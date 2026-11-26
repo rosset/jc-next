@@ -266,6 +266,26 @@ def _process(proc_data: Dict) -> Dict:
     return proc_data
 
 
+def _urlsplit(url: str):
+    """
+    urlsplit() wrapper. Python 3.16+ urlsplit() raises ValueError when
+    the port in the netloc is not a valid integer. Retry with the port
+    removed and restore the original netloc so the invalid port is
+    still reported (as null) in the output.
+    """
+    try:
+        return urlsplit(url)
+    except ValueError:
+        m = re.match(r'\s*(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?//([^/?#]*)', url)
+        if m is None:
+            raise
+        netloc = m.group(1)
+        host, sep, _ = netloc.rpartition(':')
+        if not sep or not host:
+            raise
+        return urlsplit(url.replace(netloc, host, 1))._replace(netloc=netloc)
+
+
 def parse(
     data: str,
     raw: bool = False,
@@ -311,8 +331,8 @@ def parse(
     FRAGMENT_SAFE = '+/@:;,=&?'
 
     if jc.utils.has_data(data):
-        parts = urlsplit(unwrap(data))
-        normalized = urlsplit(urlunsplit(parts))
+        parts = _urlsplit(unwrap(data))
+        normalized = _urlsplit(urlunsplit(parts))
 
         # Encode or decode each component of the already split URL. The
         # results are used as they are and are not joined and split again,
